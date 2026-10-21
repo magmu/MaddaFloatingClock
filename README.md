@@ -17,7 +17,7 @@ After that completes, you can run:
 
 This command builds the .app file then moves it to your Applications folder.
 
-You can add it to login items to make it auto start (it'll remember last position).
+You can add it to login items to make it auto start.
 
 <br />
 
