@@ -1238,7 +1238,7 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func visitGithub() {
-        if let url = URL(string: "https://github.com/maddada/MaddaFloatingClock") {
+        if let url = URL(string: "https://github.com/magmu/MaddaFloatingClock") {
             NSWorkspace.shared.open(url)
         }
     }
