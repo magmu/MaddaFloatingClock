@@ -18,8 +18,9 @@ app:
 	@echo "Building $(APP_NAME)..."
 	@mkdir -p "$(BUNDLE_MACOS)"
 	@mkdir -p "$(BUNDLE_RESOURCES)"
-	swiftc $(NAME).swift -o "$(BUNDLE_MACOS)/$(NAME)"
+	swiftc -O $(NAME).swift -o "$(BUNDLE_MACOS)/$(NAME)"
 	@cp Info.plist "$(BUNDLE_CONTENTS)/Info.plist"
+	@codesign --force --sign - "$(APP_NAME)"
 	@echo "Built $(APP_NAME) successfully"
 
 $(PLIST): $(PLIST).in

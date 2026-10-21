@@ -2,9 +2,6 @@ import Cocoa
 
 // MARK: - Settings Keys
 struct SettingsKeys {
-    static let windowX = "windowX"
-    static let windowY = "windowY"
-    static let hasCustomPosition = "hasCustomPosition"
     static let colorRed = "colorRed"
     static let colorGreen = "colorGreen"
     static let colorBlue = "colorBlue"
@@ -33,7 +30,6 @@ struct SettingsKeys {
     static let settingsWindowX = "settingsWindowX"
     static let settingsWindowY = "settingsWindowY"
     static let hasSettingsWindowPosition = "hasSettingsWindowPosition"
-    static let perMonitorPositions = "perMonitorPositions"
 }
 
 // MARK: - Settings Manager
@@ -69,102 +65,10 @@ class SettingsManager {
         ])
     }
 
-    // Generate a unique identifier for a screen based on its name and resolution
-    static func screenIdentifier(for screen: NSScreen) -> String {
-        let size = screen.frame.size
-        let name = screen.localizedName
-        return "\(name)_\(Int(size.width))x\(Int(size.height))"
-    }
-
-    // Get the screen macOS considers the main display.
+    // The screen with the menu bar (the one set as main display in System Settings).
+    // The clock is always pinned to the bottom-right corner of this screen.
     static func mainDisplayScreen() -> NSScreen? {
         return NSScreen.screens.first ?? NSScreen.main
-    }
-
-    // Get the primary screen to use (largest screen in multi-monitor setups)
-    static func primaryScreen() -> NSScreen? {
-        guard let screens = NSScreen.screens as [NSScreen]?, !screens.isEmpty else {
-            return mainDisplayScreen()
-        }
-        if screens.count == 1 {
-            return screens.first
-        }
-        // Multi-monitor: return the largest screen
-        return screens.max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
-    }
-
-    // Per-monitor positions dictionary
-    private var perMonitorPositions: [String: [String: Double]] {
-        get {
-            return defaults.dictionary(forKey: SettingsKeys.perMonitorPositions) as? [String: [String: Double]] ?? [:]
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.perMonitorPositions)
-        }
-    }
-
-    // Get window position for a specific screen
-    func windowPosition(for screen: NSScreen) -> NSPoint? {
-        let screenId = SettingsManager.screenIdentifier(for: screen)
-        guard let posDict = perMonitorPositions[screenId],
-              let x = posDict["x"],
-              let y = posDict["y"] else {
-            return nil
-        }
-        return NSPoint(x: x, y: y)
-    }
-
-    // Save window position for a specific screen
-    func setWindowPosition(_ position: NSPoint?, for screen: NSScreen) {
-        let screenId = SettingsManager.screenIdentifier(for: screen)
-        var positions = perMonitorPositions
-        if let pos = position {
-            positions[screenId] = ["x": Double(pos.x), "y": Double(pos.y)]
-        } else {
-            positions.removeValue(forKey: screenId)
-        }
-        perMonitorPositions = positions
-    }
-
-    func clearAllWindowPositions() {
-        perMonitorPositions = [:]
-        defaults.set(false, forKey: SettingsKeys.hasCustomPosition)
-    }
-
-    // Legacy windowPosition for backwards compatibility (uses current primary screen)
-    var windowPosition: NSPoint? {
-        get {
-            // First check per-monitor positions for primary screen
-            if let screen = SettingsManager.primaryScreen(),
-               let pos = windowPosition(for: screen) {
-                return pos
-            }
-            // Fall back to legacy single-position storage for migration
-            guard defaults.bool(forKey: SettingsKeys.hasCustomPosition) else { return nil }
-            return NSPoint(
-                x: defaults.double(forKey: SettingsKeys.windowX),
-                y: defaults.double(forKey: SettingsKeys.windowY)
-            )
-        }
-        set {
-            if let pos = newValue, let screen = SettingsManager.primaryScreen() {
-                setWindowPosition(pos, for: screen)
-            }
-            // Keep legacy storage for backwards compatibility
-            if let pos = newValue {
-                defaults.set(true, forKey: SettingsKeys.hasCustomPosition)
-                defaults.set(pos.x, forKey: SettingsKeys.windowX)
-                defaults.set(pos.y, forKey: SettingsKeys.windowY)
-            } else {
-                defaults.set(false, forKey: SettingsKeys.hasCustomPosition)
-            }
-        }
-    }
-
-    // Check if there's a saved position for a specific screen
-    func hasPosition(for screen: NSScreen) -> Bool {
-        let screenId = SettingsManager.screenIdentifier(for: screen)
-        return perMonitorPositions[screenId] != nil
     }
 
     var textColor: NSColor {
@@ -578,7 +482,6 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
     var pomodoroSessionsRow: NSStackView!
     var onSettingsChanged: (() -> Void)?
     var onChimeIntervalChanged: (() -> Void)?
-    var onResetPosition: (() -> Void)?
 
     convenience init() {
         let window = NSWindow(
@@ -588,15 +491,9 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
             defer: false
         )
         window.title = "Settings"
+        window.isReleasedWhenClosed = false
         self.init(window: window)
         window.delegate = self
-
-        // Restore saved position or center
-        if let savedPos = SettingsManager.shared.settingsWindowPosition {
-            window.setFrameOrigin(savedPos)
-        } else {
-            window.center()
-        }
 
         setupUI()
 
@@ -607,6 +504,19 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
             let clampedHeight = min(naturalHeight, 600)
             let newFrame = NSRect(origin: window.frame.origin, size: NSSize(width: 380, height: clampedHeight))
             window.setFrame(newFrame, display: true)
+        }
+
+        // Restore saved position only if it's still on a connected screen
+        // (e.g. it may have been saved on an external monitor that's now unplugged)
+        if let savedPos = SettingsManager.shared.settingsWindowPosition {
+            let savedFrame = NSRect(origin: savedPos, size: window.frame.size)
+            if NSScreen.screens.contains(where: { $0.visibleFrame.intersects(savedFrame) }) {
+                window.setFrameOrigin(savedPos)
+            } else {
+                window.center()
+            }
+        } else {
+            window.center()
         }
     }
 
@@ -667,7 +577,7 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         This is a minimal, always-on-top desktop clock, focus/pomodoro timer for macOS.
 
         • Right-click on clock to open settings
-        • Hold Shift and drag to move the clock
+        • The clock is pinned to the bottom-right corner of your main display
         • Post issues or suggestions on GitHub
         """
         let infoLabel = NSTextField(wrappingLabelWithString: infoText)
@@ -1052,10 +962,6 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         githubButton.bezelStyle = .rounded
         githubButton.widthAnchor.constraint(equalToConstant: 111).isActive = true
 
-        let resetButton = NSButton(title: "Reset Position", target: self, action: #selector(resetPosition))
-        resetButton.bezelStyle = .rounded
-        resetButton.widthAnchor.constraint(equalToConstant: 111).isActive = true
-
         let restartButton = NSButton(title: "Restart", target: self, action: #selector(restartApp))
         restartButton.bezelStyle = .rounded
         restartButton.widthAnchor.constraint(equalToConstant: 111).isActive = true
@@ -1064,12 +970,12 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         quitButton.bezelStyle = .rounded
         quitButton.widthAnchor.constraint(equalToConstant: 111).isActive = true
 
-        let buttonRow1 = NSStackView(views: [githubButton, resetButton])
+        let buttonRow1 = NSStackView(views: [githubButton, restartButton])
         buttonRow1.orientation = .horizontal
         buttonRow1.spacing = 10
         mainStack.addArrangedSubview(buttonRow1)
 
-        let buttonRow2 = NSStackView(views: [restartButton, quitButton])
+        let buttonRow2 = NSStackView(views: [quitButton])
         buttonRow2.orientation = .horizontal
         buttonRow2.spacing = 10
         mainStack.addArrangedSubview(buttonRow2)
@@ -1107,11 +1013,7 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func restartApp() {
-        let executablePath = Bundle.main.executablePath ?? ProcessInfo.processInfo.arguments[0]
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        try? process.run()
-        NSApp.terminate(nil)
+        relaunchApp()
     }
 
     @objc func quitApp() {
@@ -1335,10 +1237,6 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    @objc func resetPosition() {
-        onResetPosition?()
-    }
-
     @objc func visitGithub() {
         if let url = URL(string: "https://github.com/maddada/MaddaFloatingClock") {
             NSWorkspace.shared.open(url)
@@ -1346,11 +1244,8 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 }
 
-// MARK: - Draggable View
-class DraggableView: NSView {
-    var initialMouseLocation: NSPoint = .zero
-    var initialWindowLocation: NSPoint = .zero
-    var onPositionChanged: ((NSPoint) -> Void)?
+// MARK: - Clock View
+class ClockView: NSView {
     var onClockClicked: (() -> Void)?
     var onTimerClicked: (() -> Void)?
     var onTotalClicked: (() -> Void)?
@@ -1361,32 +1256,22 @@ class DraggableView: NSView {
     var totalFrame: NSRect = .zero
     var timerVisible: Bool = false
 
-    override func mouseDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.shift) {
-            initialMouseLocation = NSEvent.mouseLocation
-            initialWindowLocation = window?.frame.origin ?? .zero
-        }
+    // Route all clicks to this view instead of the text fields inside it,
+    // otherwise the labels swallow mouse events and clicks get lost.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return frame.contains(point) ? self : nil
     }
 
-    override func mouseDragged(with event: NSEvent) {
-        if event.modifierFlags.contains(.shift) {
-            let currentMouseLocation = NSEvent.mouseLocation
-            let dx = currentMouseLocation.x - initialMouseLocation.x
-            let dy = currentMouseLocation.y - initialMouseLocation.y
-            let newOrigin = NSPoint(x: initialWindowLocation.x + dx, y: initialWindowLocation.y + dy)
-            window?.setFrameOrigin(newOrigin)
-        }
+    // The app is never frontmost, so accept the first click instead of
+    // spending it on activating the app.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
     }
+
+    // Consume mouseDown so the matching mouseUp is delivered here
+    override func mouseDown(with event: NSEvent) {}
 
     override func mouseUp(with event: NSEvent) {
-        if event.modifierFlags.contains(.shift) {
-            if let origin = window?.frame.origin {
-                onPositionChanged?(origin)
-            }
-            return
-        }
-
-        // Handle clicks
         let clickLocation = convert(event.locationInWindow, from: nil)
 
         if timerVisible && timerFrame.contains(clickLocation) {
@@ -1403,22 +1288,31 @@ class DraggableView: NSView {
     }
 }
 
-func calcWindowPosition(windowSize: CGSize, screenVisibleFrame: CGRect) -> CGPoint {
-    // top-right only for now
+// Bottom-right corner of the full screen (ignores the Dock, so the clock sits in the true corner).
+// Anchoring to the right edge means the window grows leftward when the timer appears.
+func bottomRightWindowOrigin(windowSize: CGSize, screenFrame: CGRect) -> CGPoint {
     return CGPoint(
-        x: screenVisibleFrame.maxX - windowSize.width,
-        y: screenVisibleFrame.maxY - windowSize.height
+        x: round(screenFrame.maxX - windowSize.width),
+        y: round(screenFrame.minY)
     )
 }
 
-func clampWindowPosition(_ origin: CGPoint, windowSize: CGSize, screenVisibleFrame: CGRect) -> CGPoint {
-    let maxX = max(screenVisibleFrame.minX, screenVisibleFrame.maxX - windowSize.width)
-    let maxY = max(screenVisibleFrame.minY, screenVisibleFrame.maxY - windowSize.height)
+func relaunchApp() {
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.createsNewApplicationInstance = true
+    NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
+    }
+}
 
-    return CGPoint(
-        x: min(max(origin.x, screenVisibleFrame.minX), maxX),
-        y: min(max(origin.y, screenVisibleFrame.minY), maxY)
-    )
+func activateApp() {
+    if #available(macOS 14.0, *) {
+        NSApp.activate()
+    } else {
+        NSApp.activate(ignoringOtherApps: true)
+    }
 }
 
 // MARK: - Clock App Delegate
@@ -1431,7 +1325,7 @@ class Clock: NSObject, NSApplicationDelegate {
     var separatorLabel: NSTextField!
     var timerLabel: NSTextField!
     var totalTodayLabel: NSTextField!
-    var draggableView: DraggableView!
+    var clockView: ClockView!
     var updateTimer: Timer?
     var chimeTimer: Timer?
 
@@ -1447,51 +1341,12 @@ class Clock: NSObject, NSApplicationDelegate {
     var pomodoroSecondsRemaining: Int = 0
     var pomodoroCompletedSessions: Int = 0
 
-    // Calculate how much the window origin needs to shift left when timer is on the left
-    func calculateTimerLeftOffset() -> CGFloat {
-        guard stopwatchVisible && SettingsManager.shared.timerSide == 0 else { return 0 }
-
-        let settings = SettingsManager.shared
-        let font = settings.getFont()
-        let timeAttributes: [NSAttributedString.Key: Any] = [.font: font]
-        let timerText = "00:00:00"
-        let timerWidth = timerText.size(withAttributes: timeAttributes).width + 10
-        let separatorText = ""
-        let separatorWidth = separatorText.size(withAttributes: timeAttributes).width
-        let halfGap = settings.timerGap / 2
-
-        return round(timerWidth + halfGap + separatorWidth + halfGap)
-    }
-
-    func storedPosition(forWindowOrigin origin: NSPoint) -> NSPoint {
-        let timerOffset = calculateTimerLeftOffset()
-        return NSPoint(x: origin.x + timerOffset, y: origin.y)
-    }
-
-    func windowOrigin(forStoredPosition storedPosition: NSPoint) -> NSPoint {
-        let timerOffset = calculateTimerLeftOffset()
-        return NSPoint(x: storedPosition.x - timerOffset, y: storedPosition.y)
-    }
-
-    func placeWindow(on screen: NSScreen, storedPosition: NSPoint?) {
-        let windowSize = window.frame.size
-        let visibleFrame = screen.visibleFrame
-
-        let origin: NSPoint
-        if let storedPosition {
-            origin = windowOrigin(forStoredPosition: storedPosition)
-        } else {
-            origin = calcWindowPosition(windowSize: windowSize, screenVisibleFrame: visibleFrame)
-        }
-
-        let clampedOrigin = clampWindowPosition(origin, windowSize: windowSize, screenVisibleFrame: visibleFrame)
-        window.setFrameOrigin(clampedOrigin)
-    }
-
     func updateWindowPosition() {
-        guard let screen = SettingsManager.primaryScreen() else { return }
-        let settings = SettingsManager.shared
-        placeWindow(on: screen, storedPosition: settings.windowPosition(for: screen))
+        guard let window, let screen = SettingsManager.mainDisplayScreen() else { return }
+        let origin = bottomRightWindowOrigin(windowSize: window.frame.size, screenFrame: screen.frame)
+        if window.frame.origin != origin {
+            window.setFrameOrigin(origin)
+        }
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -1499,13 +1354,30 @@ class Clock: NSObject, NSApplicationDelegate {
         self.initMenuBar()
         self.scheduleNextChime()
 
+        // Re-pin to the corner when displays are added/removed, resolution changes,
+        // or the Dock/menu bar changes size.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: NSApplication.shared,
             queue: OperationQueue.main
         ) { [weak self] _ in
-            // When screen configuration changes, restore position for the new primary screen
             self?.updateWindowPosition()
+        }
+
+        // Timers don't advance while the Mac is asleep, so anything scheduled for a
+        // wall-clock time (chimes, the menu bar date) must be rescheduled on wake.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: OperationQueue.main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.scheduleNextChime()
+            self.updateLabelContent()
+            self.updateWindowPosition()
+            if let button = self.statusItem.button {
+                self.updateMenuBarIcon(button: button)
+            }
         }
     }
 
@@ -1514,21 +1386,19 @@ class Clock: NSObject, NSApplicationDelegate {
 
         if let button = statusItem.button {
             updateMenuBarIcon(button: button)
-            scheduleMidnightUpdate(button: button)
+        }
+
+        // Posted by the system at midnight (and on wake if the day changed while asleep)
+        NotificationCenter.default.addObserver(
+            forName: .NSCalendarDayChanged,
+            object: nil,
+            queue: OperationQueue.main
+        ) { [weak self] _ in
+            guard let self, let button = self.statusItem.button else { return }
+            self.updateMenuBarIcon(button: button)
         }
 
         setupMenu()
-    }
-
-    func scheduleMidnightUpdate(button: NSStatusBarButton) {
-        let calendar = Calendar.current
-        if let midnight = calendar.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0, second: 0), matchingPolicy: .nextTime) {
-            let timeUntilMidnight = midnight.timeIntervalSinceNow
-            Timer.scheduledTimer(withTimeInterval: timeUntilMidnight, repeats: false) { [weak self] _ in
-                self?.updateMenuBarIcon(button: button)
-                self?.scheduleMidnightUpdate(button: button)
-            }
-        }
     }
 
     func setupMenu() {
@@ -1536,10 +1406,6 @@ class Clock: NSObject, NSApplicationDelegate {
         let settingsItem = NSMenuItem(title: "Madda Clock Settings...", action: #selector(openSettings), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
-
-        let resetItem = NSMenuItem(title: "Reset Position", action: #selector(resetPosition), keyEquivalent: "")
-        resetItem.target = self
-        menu.addItem(resetItem)
 
         menu.addItem(NSMenuItem.separator())
         let restartItem = NSMenuItem(title: "Restart", action: #selector(restartApp), keyEquivalent: "")
@@ -1562,34 +1428,14 @@ class Clock: NSObject, NSApplicationDelegate {
             settingsWindowController?.onChimeIntervalChanged = { [weak self] in
                 self?.scheduleNextChime()
             }
-            settingsWindowController?.onResetPosition = { [weak self] in
-                self?.resetPosition()
-            }
         }
         settingsWindowController?.showWindow(nil)
         settingsWindowController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    @objc func resetPosition() {
-        guard let screen = SettingsManager.mainDisplayScreen() else { return }
-
-        SettingsManager.shared.clearAllWindowPositions()
-
-        let origin = calcWindowPosition(windowSize: window.frame.size, screenVisibleFrame: screen.visibleFrame)
-        let storedPosition = storedPosition(forWindowOrigin: origin)
-        SettingsManager.shared.setWindowPosition(storedPosition, for: screen)
-
-        window.setFrameOrigin(origin)
-        window.orderFrontRegardless()
+        activateApp()
     }
 
     @objc func restartApp() {
-        let executablePath = Bundle.main.executablePath ?? ProcessInfo.processInfo.arguments[0]
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        try? process.run()
-        NSApp.terminate(nil)
+        relaunchApp()
     }
 
     func scheduleNextChime() {
@@ -1621,10 +1467,12 @@ class Clock: NSObject, NSApplicationDelegate {
             secondsUntilChime += interval * 60
         }
 
-        chimeTimer = Timer.scheduledTimer(withTimeInterval: Double(secondsUntilChime), repeats: false) { [weak self] _ in
+        let chimeTimer = Timer(timeInterval: Double(secondsUntilChime), repeats: false) { [weak self] _ in
             self?.playChime()
             self?.scheduleNextChime()
         }
+        RunLoop.main.add(chimeTimer, forMode: .common)
+        self.chimeTimer = chimeTimer
     }
 
     func playChime() {
@@ -1685,7 +1533,7 @@ class Clock: NSObject, NSApplicationDelegate {
         stopwatchVisible = true
         stopwatchRunning = true
         stopwatchSeconds = 0
-        draggableView.timerVisible = true
+        clockView.timerVisible = true
 
         separatorLabel.isHidden = false
         timerLabel.isHidden = false
@@ -1693,7 +1541,7 @@ class Clock: NSObject, NSApplicationDelegate {
         updateTimerDisplay()
         updateTotalTodayDisplay()
 
-        stopwatchTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let stopwatchTimer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             if self.pomodoroActive {
                 self.pomodoroTick()
@@ -1704,6 +1552,9 @@ class Clock: NSObject, NSApplicationDelegate {
                 self.updateTimerDisplay()
             }
         }
+        // .common so the timer keeps running while a menu is open or a slider is being dragged
+        RunLoop.main.add(stopwatchTimer, forMode: .common)
+        self.stopwatchTimer = stopwatchTimer
 
         updateWindowSize()
         updateWindowPosition()
@@ -1732,7 +1583,7 @@ class Clock: NSObject, NSApplicationDelegate {
         stopwatchVisible = false
         stopwatchRunning = false
         stopwatchSeconds = 0
-        draggableView.timerVisible = false
+        clockView.timerVisible = false
 
         separatorLabel.isHidden = true
         timerLabel.isHidden = true
@@ -1845,11 +1696,15 @@ class Clock: NSObject, NSApplicationDelegate {
         let settings = SettingsManager.shared
         let size = calculateWindowSize()
 
+        // Resize and re-pin in one step so the window doesn't jump when the timer appears
         var frame = window.frame
         frame.size = size
+        if let screen = SettingsManager.mainDisplayScreen() {
+            frame.origin = bottomRightWindowOrigin(windowSize: size, screenFrame: screen.frame)
+        }
         window.setFrame(frame, display: true)
 
-        draggableView.frame = NSRect(x: 0, y: 0, width: size.width, height: size.height)
+        clockView.frame = NSRect(x: 0, y: 0, width: size.width, height: size.height)
 
         // Layout labels
         let font = settings.getFont()
@@ -1907,11 +1762,11 @@ class Clock: NSObject, NSApplicationDelegate {
         // Update clock frame tracking for click detection
         if settings.showDate {
             let clockFrameHeight = timeHeight + dateHeight + settings.lineSpacing
-            draggableView.clockFrame = NSRect(x: clockX, y: 0, width: clockWidth, height: clockFrameHeight)
+            clockView.clockFrame = NSRect(x: clockX, y: 0, width: clockWidth, height: clockFrameHeight)
             timeLabel.frame = NSRect(x: clockX, y: dateHeight + settings.lineSpacing, width: clockWidth, height: timeHeight)
             dateLabel.frame = NSRect(x: clockX, y: 0, width: clockWidth, height: dateHeight)
         } else {
-            draggableView.clockFrame = NSRect(x: clockX, y: 0, width: clockWidth, height: size.height)
+            clockView.clockFrame = NSRect(x: clockX, y: 0, width: clockWidth, height: size.height)
             timeLabel.frame = NSRect(x: clockX, y: 0, width: clockWidth, height: size.height)
         }
 
@@ -1922,12 +1777,12 @@ class Clock: NSObject, NSApplicationDelegate {
 
             separatorLabel.frame = NSRect(x: separatorX, y: timerY, width: separatorWidth, height: timerHeight)
             timerLabel.frame = NSRect(x: timerX, y: timerY, width: timerWidth, height: timerHeight)
-            draggableView.timerFrame = NSRect(x: timerX, y: timerY, width: timerWidth, height: timerHeight)
+            clockView.timerFrame = NSRect(x: timerX, y: timerY, width: timerWidth, height: timerHeight)
 
             // Position total today label below timer (only when date is shown)
             if settings.showDate {
                 totalTodayLabel.frame = NSRect(x: timerX, y: 0, width: timerWidth, height: dateHeight)
-                draggableView.totalFrame = NSRect(x: timerX, y: 0, width: timerWidth, height: dateHeight)
+                clockView.totalFrame = NSRect(x: timerX, y: 0, width: timerWidth, height: dateHeight)
             }
         }
     }
@@ -2031,6 +1886,7 @@ class Clock: NSObject, NSApplicationDelegate {
         timeLabel.font = settings.getFont()
         timeLabel.isBezeled = false
         timeLabel.isEditable = false
+        timeLabel.isSelectable = false
         timeLabel.drawsBackground = false
         timeLabel.alignment = alignment
         timeLabel.textColor = color
@@ -2041,6 +1897,7 @@ class Clock: NSObject, NSApplicationDelegate {
         dateLabel.font = settings.getDateFont()
         dateLabel.isBezeled = false
         dateLabel.isEditable = false
+        dateLabel.isSelectable = false
         dateLabel.drawsBackground = false
         dateLabel.alignment = alignment
         dateLabel.textColor = color
@@ -2052,6 +1909,7 @@ class Clock: NSObject, NSApplicationDelegate {
         separatorLabel.font = settings.getFont()
         separatorLabel.isBezeled = false
         separatorLabel.isEditable = false
+        separatorLabel.isSelectable = false
         separatorLabel.drawsBackground = false
         separatorLabel.alignment = .center
         separatorLabel.textColor = color
@@ -2064,6 +1922,7 @@ class Clock: NSObject, NSApplicationDelegate {
         timerLabel.font = settings.getFont()
         timerLabel.isBezeled = false
         timerLabel.isEditable = false
+        timerLabel.isSelectable = false
         timerLabel.drawsBackground = false
         timerLabel.alignment = .center
         timerLabel.textColor = color
@@ -2076,6 +1935,7 @@ class Clock: NSObject, NSApplicationDelegate {
         totalTodayLabel.font = settings.getDateFont()
         totalTodayLabel.isBezeled = false
         totalTodayLabel.isEditable = false
+        totalTodayLabel.isSelectable = false
         totalTodayLabel.drawsBackground = false
         totalTodayLabel.alignment = .center
         totalTodayLabel.textColor = color
@@ -2083,27 +1943,34 @@ class Clock: NSObject, NSApplicationDelegate {
         totalTodayLabel.stringValue = "00:00"
         totalTodayLabel.isHidden = true
 
-        updateTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        // Fire on whole-second boundaries so the displayed time flips when the real time does
+        let nextSecond = Date(timeIntervalSinceReferenceDate: ceil(Date().timeIntervalSinceReferenceDate))
+        let updateTimer = Timer(fire: nextSecond, interval: interval, repeats: true) { [weak self] _ in
             let currentSettings = SettingsManager.shared
             timeFormatter.dateFormat = currentSettings.timeFormat
             dateFormatter.dateFormat = currentSettings.dateFormat
 
-            self?.timeLabel.stringValue = timeFormatter.string(from: Date())
-            self?.dateLabel.stringValue = dateFormatter.string(from: Date())
+            let now = Date()
+            self?.timeLabel.stringValue = timeFormatter.string(from: now)
+            self?.dateLabel.stringValue = dateFormatter.string(from: now)
+
+            // Cheap safety net: keep the window pinned even if a screen change was missed
+            self?.updateWindowPosition()
         }
-        updateTimer?.tolerance = interval / 10
-        updateTimer?.fire()
+        updateTimer.tolerance = 0.05
+        // .common so the clock keeps ticking while a menu is open or a slider is being dragged
+        RunLoop.main.add(updateTimer, forMode: .common)
+        self.updateTimer = updateTimer
+        updateTimer.fire()
     }
 
     func initWindow(size: CGSize) -> NSWindow {
         let settings = SettingsManager.shared
-        let screen = SettingsManager.primaryScreen() ?? NSScreen.main!
         let pos: CGPoint
-        if let savedPos = settings.windowPosition(for: screen) {
-            let windowOrigin = windowOrigin(forStoredPosition: savedPos)
-            pos = clampWindowPosition(windowOrigin, windowSize: size, screenVisibleFrame: screen.visibleFrame)
+        if let screen = SettingsManager.mainDisplayScreen() {
+            pos = bottomRightWindowOrigin(windowSize: size, screenFrame: screen.frame)
         } else {
-            pos = calcWindowPosition(windowSize: size, screenVisibleFrame: screen.visibleFrame)
+            pos = .zero
         }
 
         let rect = NSMakeRect(pos.x, pos.y, size.width, size.height)
@@ -2114,17 +1981,8 @@ class Clock: NSObject, NSApplicationDelegate {
             defer: true
         )
 
-        draggableView = DraggableView(frame: NSMakeRect(0, 0, size.width, size.height))
-        draggableView.onPositionChanged = { [weak self] newPos in
-            guard let self else { return }
-
-            // Save the clock anchor position for the screen the window is actually on.
-            let storedPosition = self.storedPosition(forWindowOrigin: newPos)
-            if let currentScreen = self.window.screen ?? SettingsManager.mainDisplayScreen() ?? SettingsManager.primaryScreen() {
-                SettingsManager.shared.setWindowPosition(storedPosition, for: currentScreen)
-            }
-        }
-        draggableView.onClockClicked = { [weak self] in
+        clockView = ClockView(frame: NSMakeRect(0, 0, size.width, size.height))
+        clockView.onClockClicked = { [weak self] in
             guard let self = self else { return }
             if self.stopwatchVisible {
                 self.removeStopwatch()
@@ -2137,7 +1995,7 @@ class Clock: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        draggableView.onTimerClicked = { [weak self] in
+        clockView.onTimerClicked = { [weak self] in
             guard let self = self else { return }
             if SettingsManager.shared.isPomodoroMode {
                 // In pomodoro mode, clicking timer doesn't pause
@@ -2145,19 +2003,19 @@ class Clock: NSObject, NSApplicationDelegate {
             }
             self.toggleStopwatch()
         }
-        draggableView.onRightClick = { [weak self] in
+        clockView.onRightClick = { [weak self] in
             self?.openSettings()
         }
-        draggableView.onTotalClicked = {
+        clockView.onTotalClicked = {
             // Total click does nothing now - pomodoro is started by clock click
         }
 
         // Add all labels
-        draggableView.addSubview(timeLabel)
-        draggableView.addSubview(dateLabel)
-        draggableView.addSubview(separatorLabel)
-        draggableView.addSubview(timerLabel)
-        draggableView.addSubview(totalTodayLabel)
+        clockView.addSubview(timeLabel)
+        clockView.addSubview(dateLabel)
+        clockView.addSubview(separatorLabel)
+        clockView.addSubview(timerLabel)
+        clockView.addSubview(totalTodayLabel)
 
         // Layout labels
         let font = settings.getFont()
@@ -2169,17 +2027,23 @@ class Clock: NSObject, NSApplicationDelegate {
             timeLabel.frame = NSRect(x: 0, y: dateHeight + settings.lineSpacing, width: size.width, height: timeHeight)
             dateLabel.frame = NSRect(x: 0, y: 0, width: size.width, height: dateHeight)
         } else {
-            timeLabel.frame = draggableView.bounds
+            timeLabel.frame = clockView.bounds
         }
 
         // Set initial clock frame for click detection
-        draggableView.clockFrame = draggableView.bounds
+        clockView.clockFrame = clockView.bounds
 
-        window.contentView = draggableView
+        window.contentView = clockView
         window.ignoresMouseEvents = false
+        window.isReleasedWhenClosed = false
         window.level = NSWindow.Level.floating
-        window.collectionBehavior = NSWindow.CollectionBehavior.canJoinAllSpaces
-        window.backgroundColor = NSColor(red: 0, green: 0, blue: 0, alpha: 0)
+        // Show on every Space, alongside full-screen apps, and stay put in Mission Control / Cmd-Tab
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        // Without isOpaque = false and no shadow, a transparent borderless window
+        // can draw a dark box or ghost shadow behind the text on recent macOS.
+        window.isOpaque = false
+        window.hasShadow = false
+        window.backgroundColor = .clear
         window.orderFrontRegardless()
 
         return window

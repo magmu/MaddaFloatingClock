@@ -65,21 +65,15 @@ Hide the menu bar clock by switching this setting to analog.
 - **Stopwatch timer** - Click clock to start, click timer to pause/resume, click clock again to remove
 - **Total today** - Tracks cumulative timer time for the day (resets at midnight)
 - **Pomodoro timer** - Click total time to start/stop, configurable work/break/long break durations
-- **Draggable window** - Shift+drag to reposition, position is saved
+- **Fixed position** - Pinned to the very bottom-right corner of the main display
 - **Always on top** - Floats above all windows on all spaces
 - **Menu bar icon** - Shows current day of week and date
 
 <br />
 
-## Per-Monitor Position Memory
+## Position
 
-The clock remembers its position separately for each monitor. This is useful when you switch between different display setups:
-
-- **Different positions per screen** - Set the clock position on your external 4K monitor, then set a different position on your laptop screen. Each is saved independently.
-- **Automatic restoration** - When you unplug your external monitor, the clock restores to your saved laptop screen position. Plug the external monitor back in and it returns to that monitor's saved position.
-- **Multi-monitor setups** - When multiple monitors are connected, the clock appears on the largest screen and treats that as a separate configuration.
-
-Positions are identified by monitor name and resolution (e.g., "Built-in Retina Display_1728x1117" or "LG HDR 4K_3840x2160").
+The clock is always pinned to the bottom-right corner of the main display (the screen with the menu bar, set in System Settings > Displays). It sits in the true screen corner regardless of the Dock (a very wide Dock that reaches the corner can cover it) and re-pins itself automatically when displays are connected/disconnected, the resolution changes, or the Mac wakes from sleep. When the timer is shown, the window grows to the left so the clock stays anchored in the corner.
 
 <br />
 
