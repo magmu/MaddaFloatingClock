@@ -21,15 +21,9 @@ You can add it to login items to make it auto start.
 
 <br />
 
-## 2 types of timers (optional):
+## Calendar:
 
-Focus Timer:
-<br /><br />
-<img width="387" height="58" alt="2025-12-25_CleanShot_03-06-37" src="https://github.com/user-attachments/assets/8bdceb98-31d1-48b9-b648-fb0987087c2d" />
-
-Pomodoro Timer:
-<br /><br />
-<img width="387" height="58" alt="2025-12-25_CleanShot_03-06-53" src="https://github.com/user-attachments/assets/ac73df27-b181-4100-b361-65fad64a1c10" />
+Click the clock to open a calendar flyout (today's full date plus a month view you can page through). Click elsewhere or press Esc to close it.
 
 <br />
 
@@ -62,9 +56,7 @@ Hide the menu bar clock by switching this setting to analog.
 - **Text alignment** - Left, center, or right alignment
 - **Chime reminder** - Audio chime at 5-60 minute intervals
 - **Chime volume** - Adjustable volume (0-100%)
-- **Stopwatch timer** - Click clock to start, click timer to pause/resume, click clock again to remove
-- **Total today** - Tracks cumulative timer time for the day (resets at midnight)
-- **Pomodoro timer** - Click total time to start/stop, configurable work/break/long break durations
+- **Calendar** - Click the clock to show a month calendar
 - **Fixed position** - Pinned to the very bottom-right corner of the main display
 - **Always on top** - Floats above all windows on all spaces
 - **Menu bar icon** - Shows current day of week and date
@@ -73,7 +65,7 @@ Hide the menu bar clock by switching this setting to analog.
 
 ## Position
 
-The clock is always pinned to the bottom-right corner of the main display (the screen with the menu bar, set in System Settings > Displays). It sits in the true screen corner regardless of the Dock (a very wide Dock that reaches the corner can cover it) and re-pins itself automatically when displays are connected/disconnected, the resolution changes, or the Mac wakes from sleep. When the timer is shown, the window grows to the left so the clock stays anchored in the corner.
+The clock is always pinned to the bottom-right corner of the main display (the screen with the menu bar, set in System Settings > Displays). It sits in the true screen corner regardless of the Dock (a very wide Dock that reaches the corner can cover it) and re-pins itself automatically when displays are connected/disconnected, the resolution changes, or the Mac wakes from sleep.
 
 <br />
 

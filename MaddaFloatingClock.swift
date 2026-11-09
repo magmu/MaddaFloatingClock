@@ -17,16 +17,6 @@ struct SettingsKeys {
     static let textAlignment = "textAlignment"
     static let chimeInterval = "chimeInterval"
     static let chimeVolume = "chimeVolume"
-    static let totalTodaySeconds = "totalTodaySeconds"
-    static let totalTodayDate = "totalTodayDate"
-    static let clickToShowTimerEnabled = "clickToShowTimerEnabled"
-    static let timerMode = "timerMode" // "stopwatch" or "pomodoro"
-    static let timerGap = "timerGap"
-    static let timerSide = "timerSide" // 0 = left, 1 = right
-    static let pomodoroWorkDuration = "pomodoroWorkDuration"
-    static let pomodoroBreakDuration = "pomodoroBreakDuration"
-    static let pomodoroLongBreakDuration = "pomodoroLongBreakDuration"
-    static let pomodoroSessionsBeforeLongBreak = "pomodoroSessionsBeforeLongBreak"
     static let settingsWindowX = "settingsWindowX"
     static let settingsWindowY = "settingsWindowY"
     static let hasSettingsWindowPosition = "hasSettingsWindowPosition"
@@ -54,14 +44,6 @@ class SettingsManager {
             SettingsKeys.textAlignment: 1,
             SettingsKeys.chimeInterval: 30,
             SettingsKeys.chimeVolume: 50,
-            SettingsKeys.clickToShowTimerEnabled: true,
-            SettingsKeys.timerMode: "stopwatch",
-            SettingsKeys.timerGap: -13.0,
-            SettingsKeys.timerSide: 1,
-            SettingsKeys.pomodoroWorkDuration: 25,
-            SettingsKeys.pomodoroBreakDuration: 5,
-            SettingsKeys.pomodoroLongBreakDuration: 15,
-            SettingsKeys.pomodoroSessionsBeforeLongBreak: 4
         ])
     }
 
@@ -198,98 +180,6 @@ class SettingsManager {
         }
     }
 
-    // Click to show timer
-    var clickToShowTimerEnabled: Bool {
-        get {
-            if defaults.object(forKey: SettingsKeys.clickToShowTimerEnabled) == nil {
-                return true // enabled by default
-            }
-            return defaults.bool(forKey: SettingsKeys.clickToShowTimerEnabled)
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.clickToShowTimerEnabled)
-        }
-    }
-
-    // Timer mode: "stopwatch" or "pomodoro"
-    var timerMode: String {
-        get {
-            return defaults.string(forKey: SettingsKeys.timerMode) ?? "stopwatch"
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.timerMode)
-        }
-    }
-
-    var isPomodoroMode: Bool {
-        return timerMode == "pomodoro"
-    }
-
-    // Gap between clock and timer
-    var timerGap: CGFloat {
-        get {
-            let value = defaults.object(forKey: SettingsKeys.timerGap) as? CGFloat
-            return value ?? 22
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.timerGap)
-        }
-    }
-
-    // Which side timer appears on: 0 = left, 1 = right
-    var timerSide: Int {
-        get {
-            if defaults.object(forKey: SettingsKeys.timerSide) == nil {
-                return 0 // default left
-            }
-            return defaults.integer(forKey: SettingsKeys.timerSide)
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.timerSide)
-        }
-    }
-
-    // Pomodoro settings (in minutes)
-    var pomodoroWorkDuration: Int {
-        get {
-            let value = defaults.object(forKey: SettingsKeys.pomodoroWorkDuration) as? Int
-            return value ?? 25
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.pomodoroWorkDuration)
-        }
-    }
-
-    var pomodoroBreakDuration: Int {
-        get {
-            let value = defaults.object(forKey: SettingsKeys.pomodoroBreakDuration) as? Int
-            return value ?? 5
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.pomodoroBreakDuration)
-        }
-    }
-
-    var pomodoroLongBreakDuration: Int {
-        get {
-            let value = defaults.object(forKey: SettingsKeys.pomodoroLongBreakDuration) as? Int
-            return value ?? 15
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.pomodoroLongBreakDuration)
-        }
-    }
-
-    var pomodoroSessionsBeforeLongBreak: Int {
-        get {
-            let value = defaults.object(forKey: SettingsKeys.pomodoroSessionsBeforeLongBreak) as? Int
-            return value ?? 4
-        }
-        set {
-            defaults.set(newValue, forKey: SettingsKeys.pomodoroSessionsBeforeLongBreak)
-        }
-    }
-
     // Settings window position
     var settingsWindowPosition: NSPoint? {
         get {
@@ -330,61 +220,6 @@ class SettingsManager {
         }
         set {
             defaults.set(newValue, forKey: SettingsKeys.chimeInterval)
-        }
-    }
-
-    // Total time tracked - stored in JSON file with history per day
-    private var timerDataURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = appSupport.appendingPathComponent("MaddaFloatingClock")
-
-        // Create directory if needed
-        try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-
-        return appDir.appendingPathComponent("timer_data.json")
-    }
-
-    private func loadAllTimerData() -> [String: [String: Any]] {
-        guard let data = try? Data(contentsOf: timerDataURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Any]] else {
-            return [:]
-        }
-        return json
-    }
-
-    private func saveAllTimerData(_ data: [String: [String: Any]]) {
-        if let jsonData = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) {
-            try? jsonData.write(to: timerDataURL)
-        }
-    }
-
-    private func todayString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Date())
-    }
-
-    var totalTodaySeconds: Int {
-        get {
-            let allData = loadAllTimerData()
-            let today = todayString()
-
-            guard let dayData = allData[today],
-                  let seconds = dayData["total_seconds"] as? Int else {
-                return 0
-            }
-            return seconds
-        }
-        set {
-            var allData = loadAllTimerData()
-            let today = todayString()
-
-            if allData[today] == nil {
-                allData[today] = [:]
-            }
-            allData[today]?["total_seconds"] = newValue
-
-            saveAllTimerData(allData)
         }
     }
 
@@ -469,17 +304,6 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
     var dateFormatRow: NSStackView!
     var lineSpacingRow: NSStackView!
     var dateSizeRow: NSStackView!
-    var timerGapRow: NSStackView!
-    var timerSideRow: NSStackView!
-    var timerModeRow: NSStackView!
-    var timerExplanationLabel: NSTextField!
-    var timerHistoryButton: NSButton!
-    var timerModeControl: NSSegmentedControl!
-    var pomodoroExplanationLabel: NSTextField!
-    var pomodoroWorkRow: NSStackView!
-    var pomodoroBreakRow: NSStackView!
-    var pomodoroLongBreakRow: NSStackView!
-    var pomodoroSessionsRow: NSStackView!
     var onSettingsChanged: (() -> Void)?
     var onChimeIntervalChanged: (() -> Void)?
 
@@ -574,8 +398,9 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         mainStack.addArrangedSubview(makeSectionHeader("Madda Floating Clock"))
 
         let infoText = """
-        This is a minimal, always-on-top desktop clock, focus/pomodoro timer for macOS.
+        This is a minimal, always-on-top desktop clock for macOS.
 
+        • Click on clock to show a calendar
         • Right-click on clock to open settings
         • The clock is pinned to the bottom-right corner of your main display
         • Post issues or suggestions on GitHub
@@ -778,141 +603,6 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
         // Section gap
         mainStack.setCustomSpacing(sectionSpacing, after: alignmentRow)
-
-        // ═══════════════════════════════════════
-        // TIMER SECTION
-        // ═══════════════════════════════════════
-
-        mainStack.addArrangedSubview(makeSectionHeader("TIMER & POMODORO"))
-
-        // Click to show timer checkbox
-        let clickToShowTimerCheckbox = NSButton(checkboxWithTitle: "Click on clock to show timer", target: self, action: #selector(clickToShowTimerChanged))
-        clickToShowTimerCheckbox.state = settings.clickToShowTimerEnabled ? .on : .off
-        mainStack.addArrangedSubview(clickToShowTimerCheckbox)
-
-        // Timer mode picker
-        timerModeControl = NSSegmentedControl(labels: ["Stopwatch", "Pomodoro"], trackingMode: .selectOne, target: self, action: #selector(timerModeChanged))
-        timerModeControl.selectedSegment = settings.isPomodoroMode ? 1 : 0
-        timerModeRow = makeRow([makeLabel("Mode:"), timerModeControl])
-        timerModeRow.isHidden = !settings.clickToShowTimerEnabled
-        mainStack.addArrangedSubview(timerModeRow)
-
-        // Timer gap slider
-        let timerGapSlider = NSSlider()
-        timerGapSlider.minValue = -20
-        timerGapSlider.maxValue = 60
-        timerGapSlider.integerValue = Int(settings.timerGap)
-        timerGapSlider.target = self
-        timerGapSlider.action = #selector(timerGapChanged)
-        timerGapSlider.widthAnchor.constraint(equalToConstant: 140).isActive = true
-
-        let timerGapLabel = NSTextField(labelWithString: "\(Int(settings.timerGap)) px")
-        timerGapLabel.widthAnchor.constraint(equalToConstant: 45).isActive = true
-        timerGapLabel.tag = 999 // Tag to find it later
-        timerGapRow = makeRow([makeLabel("Timer gap:"), timerGapSlider, timerGapLabel])
-        timerGapRow.isHidden = !settings.clickToShowTimerEnabled
-        mainStack.addArrangedSubview(timerGapRow)
-
-        // Timer side control
-        let timerSideControl = NSSegmentedControl(labels: ["Left", "Right"], trackingMode: .selectOne, target: self, action: #selector(timerSideChanged))
-        timerSideControl.selectedSegment = settings.timerSide
-        timerSideControl.tag = 998 // Tag to find it later
-        timerSideRow = makeRow([makeLabel("Timer side:"), timerSideControl])
-        timerSideRow.isHidden = !settings.clickToShowTimerEnabled
-        mainStack.addArrangedSubview(timerSideRow)
-
-        // Stopwatch explanation (shown when mode is stopwatch)
-        let showStopwatch = settings.clickToShowTimerEnabled && !settings.isPomodoroMode
-        timerExplanationLabel = NSTextField(wrappingLabelWithString: "Click clock to start • Click timer to pause/resume\nClick clock to stop and save time")
-        timerExplanationLabel.font = NSFont.systemFont(ofSize: 11)
-        timerExplanationLabel.textColor = NSColor.secondaryLabelColor
-        timerExplanationLabel.isHidden = !showStopwatch
-        mainStack.addArrangedSubview(timerExplanationLabel)
-
-        // Pomodoro explanation (shown when mode is pomodoro)
-        let showPomodoro = settings.clickToShowTimerEnabled && settings.isPomodoroMode
-        pomodoroExplanationLabel = NSTextField(wrappingLabelWithString: "Click clock to start/stop Pomodoro\n🍅 = Work • ☕ = Break")
-        pomodoroExplanationLabel.font = NSFont.systemFont(ofSize: 11)
-        pomodoroExplanationLabel.textColor = NSColor.secondaryLabelColor
-        pomodoroExplanationLabel.isHidden = !showPomodoro
-        mainStack.addArrangedSubview(pomodoroExplanationLabel)
-
-        // Pomodoro Work duration
-        let workSlider = NSSlider()
-        workSlider.minValue = 1
-        workSlider.maxValue = 60
-        workSlider.integerValue = settings.pomodoroWorkDuration
-        workSlider.target = self
-        workSlider.action = #selector(pomodoroWorkChanged)
-        workSlider.widthAnchor.constraint(equalToConstant: 100).isActive = true
-
-        let workLabel = NSTextField(labelWithString: "\(settings.pomodoroWorkDuration) min")
-        workLabel.widthAnchor.constraint(equalToConstant: 50).isActive = true
-        workLabel.tag = 1001
-        pomodoroWorkRow = makeRow([makeLabel("Work:"), workSlider, workLabel])
-        pomodoroWorkRow.isHidden = !showPomodoro
-        mainStack.addArrangedSubview(pomodoroWorkRow)
-
-        // Pomodoro Break duration
-        let breakSlider = NSSlider()
-        breakSlider.minValue = 1
-        breakSlider.maxValue = 30
-        breakSlider.integerValue = settings.pomodoroBreakDuration
-        breakSlider.target = self
-        breakSlider.action = #selector(pomodoroBreakChanged)
-        breakSlider.widthAnchor.constraint(equalToConstant: 100).isActive = true
-
-        let breakLabel = NSTextField(labelWithString: "\(settings.pomodoroBreakDuration) min")
-        breakLabel.widthAnchor.constraint(equalToConstant: 50).isActive = true
-        breakLabel.tag = 1002
-        pomodoroBreakRow = makeRow([makeLabel("Break:"), breakSlider, breakLabel])
-        pomodoroBreakRow.isHidden = !showPomodoro
-        mainStack.addArrangedSubview(pomodoroBreakRow)
-
-        // Pomodoro Long break duration
-        let longBreakSlider = NSSlider()
-        longBreakSlider.minValue = 5
-        longBreakSlider.maxValue = 60
-        longBreakSlider.integerValue = settings.pomodoroLongBreakDuration
-        longBreakSlider.target = self
-        longBreakSlider.action = #selector(pomodoroLongBreakChanged)
-        longBreakSlider.widthAnchor.constraint(equalToConstant: 100).isActive = true
-
-        let longBreakLabel = NSTextField(labelWithString: "\(settings.pomodoroLongBreakDuration) min")
-        longBreakLabel.widthAnchor.constraint(equalToConstant: 50).isActive = true
-        longBreakLabel.tag = 1003
-        pomodoroLongBreakRow = makeRow([makeLabel("Long break:"), longBreakSlider, longBreakLabel])
-        pomodoroLongBreakRow.isHidden = !showPomodoro
-        mainStack.addArrangedSubview(pomodoroLongBreakRow)
-
-        // Pomodoro Sessions before long break
-        let sessionsSlider = NSSlider()
-        sessionsSlider.minValue = 2
-        sessionsSlider.maxValue = 8
-        sessionsSlider.integerValue = settings.pomodoroSessionsBeforeLongBreak
-        sessionsSlider.target = self
-        sessionsSlider.action = #selector(pomodoroSessionsChanged)
-        sessionsSlider.widthAnchor.constraint(equalToConstant: 100).isActive = true
-
-        let sessionsLabel = NSTextField(labelWithString: "\(settings.pomodoroSessionsBeforeLongBreak)")
-        sessionsLabel.widthAnchor.constraint(equalToConstant: 50).isActive = true
-        sessionsLabel.tag = 1004
-        pomodoroSessionsRow = makeRow([makeLabel("Sessions:"), sessionsSlider, sessionsLabel])
-        pomodoroSessionsRow.isHidden = !showPomodoro
-        mainStack.addArrangedSubview(pomodoroSessionsRow)
-
-        // View history button
-        timerHistoryButton = NSButton(title: "Saved Focus Times", target: self, action: #selector(viewTimerHistory))
-        timerHistoryButton.bezelStyle = .rounded
-        timerHistoryButton.controlSize = .small
-        timerHistoryButton.isHidden = !settings.clickToShowTimerEnabled
-        mainStack.addArrangedSubview(timerHistoryButton)
-
-        // Section gap - use invisible spacer so spacing persists even when timer elements are hidden
-        let timerSectionSpacer = NSView()
-        timerSectionSpacer.heightAnchor.constraint(equalToConstant: 0).isActive = true
-        mainStack.addArrangedSubview(timerSectionSpacer)
-        mainStack.setCustomSpacing(sectionSpacing, after: timerSectionSpacer)
 
         // ═══════════════════════════════════════
         // CHIME SECTION
@@ -1142,101 +832,6 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         onChimeIntervalChanged?()
     }
 
-    @objc func clickToShowTimerChanged(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        SettingsManager.shared.clickToShowTimerEnabled = enabled
-        let isPomodoroMode = SettingsManager.shared.isPomodoroMode
-
-        timerModeRow.isHidden = !enabled
-        timerGapRow.isHidden = !enabled
-        timerSideRow.isHidden = !enabled
-        timerHistoryButton.isHidden = !enabled
-
-        // Show appropriate explanation based on mode
-        timerExplanationLabel.isHidden = !enabled || isPomodoroMode
-        pomodoroExplanationLabel.isHidden = !enabled || !isPomodoroMode
-        pomodoroWorkRow.isHidden = !enabled || !isPomodoroMode
-        pomodoroBreakRow.isHidden = !enabled || !isPomodoroMode
-        pomodoroLongBreakRow.isHidden = !enabled || !isPomodoroMode
-        pomodoroSessionsRow.isHidden = !enabled || !isPomodoroMode
-    }
-
-    @objc func timerModeChanged(_ sender: NSSegmentedControl) {
-        let isPomodoroMode = sender.selectedSegment == 1
-        SettingsManager.shared.timerMode = isPomodoroMode ? "pomodoro" : "stopwatch"
-
-        // Update visibility
-        timerExplanationLabel.isHidden = isPomodoroMode
-        pomodoroExplanationLabel.isHidden = !isPomodoroMode
-        pomodoroWorkRow.isHidden = !isPomodoroMode
-        pomodoroBreakRow.isHidden = !isPomodoroMode
-        pomodoroLongBreakRow.isHidden = !isPomodoroMode
-        pomodoroSessionsRow.isHidden = !isPomodoroMode
-    }
-
-    @objc func timerGapChanged(_ sender: NSSlider) {
-        let gap = sender.integerValue
-        SettingsManager.shared.timerGap = CGFloat(gap)
-        // Update the label
-        if let label = sender.superview?.subviews.first(where: { $0.tag == 999 }) as? NSTextField {
-            label.stringValue = "\(gap) px"
-        }
-        onSettingsChanged?()
-    }
-
-    @objc func timerSideChanged(_ sender: NSSegmentedControl) {
-        SettingsManager.shared.timerSide = sender.selectedSegment
-        onSettingsChanged?()
-    }
-
-    @objc func viewTimerHistory() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = appSupport.appendingPathComponent("MaddaFloatingClock")
-        let fileURL = appDir.appendingPathComponent("timer_data.json")
-
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-        } else {
-            let alert = NSAlert()
-            alert.messageText = "No Timer Data"
-            alert.informativeText = "No saved times yet. Use the timer to start tracking!"
-            alert.alertStyle = .informational
-            alert.runModal()
-        }
-    }
-
-    @objc func pomodoroWorkChanged(_ sender: NSSlider) {
-        let value = sender.integerValue
-        SettingsManager.shared.pomodoroWorkDuration = value
-        if let label = sender.superview?.subviews.first(where: { $0.tag == 1001 }) as? NSTextField {
-            label.stringValue = "\(value) min"
-        }
-    }
-
-    @objc func pomodoroBreakChanged(_ sender: NSSlider) {
-        let value = sender.integerValue
-        SettingsManager.shared.pomodoroBreakDuration = value
-        if let label = sender.superview?.subviews.first(where: { $0.tag == 1002 }) as? NSTextField {
-            label.stringValue = "\(value) min"
-        }
-    }
-
-    @objc func pomodoroLongBreakChanged(_ sender: NSSlider) {
-        let value = sender.integerValue
-        SettingsManager.shared.pomodoroLongBreakDuration = value
-        if let label = sender.superview?.subviews.first(where: { $0.tag == 1003 }) as? NSTextField {
-            label.stringValue = "\(value) min"
-        }
-    }
-
-    @objc func pomodoroSessionsChanged(_ sender: NSSlider) {
-        let value = sender.integerValue
-        SettingsManager.shared.pomodoroSessionsBeforeLongBreak = value
-        if let label = sender.superview?.subviews.first(where: { $0.tag == 1004 }) as? NSTextField {
-            label.stringValue = "\(value)"
-        }
-    }
-
     @objc func visitGithub() {
         if let url = URL(string: "https://github.com/magmu/MaddaFloatingClock") {
             NSWorkspace.shared.open(url)
@@ -1247,14 +842,7 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
 // MARK: - Clock View
 class ClockView: NSView {
     var onClockClicked: (() -> Void)?
-    var onTimerClicked: (() -> Void)?
-    var onTotalClicked: (() -> Void)?
     var onRightClick: (() -> Void)?
-
-    var clockFrame: NSRect = .zero
-    var timerFrame: NSRect = .zero
-    var totalFrame: NSRect = .zero
-    var timerVisible: Bool = false
 
     // Route all clicks to this view instead of the text fields inside it,
     // otherwise the labels swallow mouse events and clicks get lost.
@@ -1272,13 +860,7 @@ class ClockView: NSView {
     override func mouseDown(with event: NSEvent) {}
 
     override func mouseUp(with event: NSEvent) {
-        let clickLocation = convert(event.locationInWindow, from: nil)
-
-        if timerVisible && timerFrame.contains(clickLocation) {
-            onTimerClicked?()
-        } else if timerVisible && totalFrame.contains(clickLocation) {
-            onTotalClicked?()
-        } else if clockFrame.contains(clickLocation) {
+        if bounds.contains(convert(event.locationInWindow, from: nil)) {
             onClockClicked?()
         }
     }
@@ -1289,7 +871,7 @@ class ClockView: NSView {
 }
 
 // Bottom-right corner of the full screen (ignores the Dock, so the clock sits in the true corner).
-// Anchoring to the right edge means the window grows leftward when the timer appears.
+// Anchoring to the right edge means the window grows leftward when the clock gets wider.
 func bottomRightWindowOrigin(windowSize: CGSize, screenFrame: CGRect) -> CGPoint {
     return CGPoint(
         x: round(screenFrame.maxX - windowSize.width),
@@ -1315,6 +897,55 @@ func activateApp() {
     }
 }
 
+// MARK: - Calendar Flyout
+// A simple Windows-style calendar: full date on top, month grid below.
+class CalendarViewController: NSViewController {
+    private let headerLabel = NSTextField(labelWithString: "")
+    private let datePicker = NSDatePicker()
+
+    override func loadView() {
+        headerLabel.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
+        headerLabel.isSelectable = false
+
+        datePicker.datePickerStyle = .clockAndCalendar
+        datePicker.datePickerElements = .yearMonthDay
+        datePicker.isBezeled = false
+        datePicker.isBordered = false
+        datePicker.drawsBackground = false
+
+        let todayButton = NSButton(title: "Today", target: self, action: #selector(goToToday))
+        todayButton.bezelStyle = .rounded
+        todayButton.controlSize = .small
+
+        let stack = NSStackView(views: [headerLabel, datePicker, todayButton])
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 10
+        stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
+        view = stack
+
+        refresh()
+        // Popovers size themselves from the content's frame, so give it its natural size
+        let size = stack.fittingSize
+        stack.setFrameSize(size)
+        preferredContentSize = size
+    }
+
+    // Reset to today; called every time the flyout opens so it's right after midnight.
+    func refresh() {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        let now = Date()
+        headerLabel.stringValue = formatter.string(from: now)
+        datePicker.dateValue = now
+    }
+
+    @objc func goToToday() {
+        refresh()
+    }
+}
+
 // MARK: - Clock App Delegate
 class Clock: NSObject, NSApplicationDelegate {
     var window: NSWindow!
@@ -1322,24 +953,11 @@ class Clock: NSObject, NSApplicationDelegate {
     var settingsWindowController: SettingsWindowController?
     var timeLabel: NSTextField!
     var dateLabel: NSTextField!
-    var separatorLabel: NSTextField!
-    var timerLabel: NSTextField!
-    var totalTodayLabel: NSTextField!
     var clockView: ClockView!
+    var calendarPopover: NSPopover?
+    let calendarViewController = CalendarViewController()
     var updateTimer: Timer?
     var chimeTimer: Timer?
-
-    // Timer state
-    var stopwatchTimer: Timer?
-    var stopwatchSeconds: Int = 0
-    var stopwatchRunning: Bool = false
-    var stopwatchVisible: Bool = false
-
-    // Pomodoro state
-    var pomodoroActive: Bool = false
-    var pomodoroIsBreak: Bool = false
-    var pomodoroSecondsRemaining: Int = 0
-    var pomodoroCompletedSessions: Int = 0
 
     func updateWindowPosition() {
         guard let window, let screen = SettingsManager.mainDisplayScreen() else { return }
@@ -1438,6 +1056,28 @@ class Clock: NSObject, NSApplicationDelegate {
         relaunchApp()
     }
 
+    func toggleCalendar() {
+        if let popover = calendarPopover, popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+
+        let popover = calendarPopover ?? {
+            let p = NSPopover()
+            p.contentViewController = calendarViewController
+            p.behavior = .transient
+            p.animates = true
+            calendarPopover = p
+            return p
+        }()
+
+        calendarViewController.refresh()
+        // The app is an accessory app; activate it so the popover takes clicks
+        // and closes when you click elsewhere.
+        activateApp()
+        popover.show(relativeTo: clockView.bounds, of: clockView, preferredEdge: .maxY)
+    }
+
     func scheduleNextChime() {
         chimeTimer?.invalidate()
         chimeTimer = nil
@@ -1488,22 +1128,11 @@ class Clock: NSObject, NSApplicationDelegate {
         // Update font
         timeLabel.font = settings.getFont()
         dateLabel.font = settings.getDateFont()
-        separatorLabel.font = settings.getFont()
-        timerLabel.font = settings.getFont()
-        totalTodayLabel.font = settings.getDateFont()
 
         // Update color and opacity
         let color = settings.textColor.withAlphaComponent(settings.opacity)
         timeLabel.textColor = color
         dateLabel.textColor = color
-        separatorLabel.textColor = color
-        totalTodayLabel.textColor = color
-        // Timer uses dimmed color if paused
-        if stopwatchVisible {
-            timerLabel.textColor = stopwatchRunning ? color : color.withAlphaComponent(settings.opacity * 0.5)
-        } else {
-            timerLabel.textColor = color
-        }
 
         // Update alignment
         let alignment = settings.getNSTextAlignment()
@@ -1512,8 +1141,6 @@ class Clock: NSObject, NSApplicationDelegate {
 
         // Show/hide date label
         dateLabel.isHidden = !settings.showDate
-        // Show/hide total today (only visible when date is shown AND stopwatch is visible)
-        totalTodayLabel.isHidden = !settings.showDate || !stopwatchVisible
 
         // Update display format and window size
         updateLabelContent()
@@ -1521,170 +1148,6 @@ class Clock: NSObject, NSApplicationDelegate {
 
         // Update position
         updateWindowPosition()
-    }
-
-    // MARK: - Stopwatch Methods
-
-    func startStopwatch() {
-        if stopwatchVisible {
-            return
-        }
-
-        stopwatchVisible = true
-        stopwatchRunning = true
-        stopwatchSeconds = 0
-        clockView.timerVisible = true
-
-        separatorLabel.isHidden = false
-        timerLabel.isHidden = false
-        totalTodayLabel.isHidden = !SettingsManager.shared.showDate
-        updateTimerDisplay()
-        updateTotalTodayDisplay()
-
-        let stopwatchTimer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            if self.pomodoroActive {
-                self.pomodoroTick()
-                self.updateTimerDisplay()
-                self.updateTotalTodayDisplay()
-            } else if self.stopwatchRunning {
-                self.stopwatchSeconds += 1
-                self.updateTimerDisplay()
-            }
-        }
-        // .common so the timer keeps running while a menu is open or a slider is being dragged
-        RunLoop.main.add(stopwatchTimer, forMode: .common)
-        self.stopwatchTimer = stopwatchTimer
-
-        updateWindowSize()
-        updateWindowPosition()
-    }
-
-    func toggleStopwatch() {
-        stopwatchRunning = !stopwatchRunning
-        timerLabel.textColor = stopwatchRunning
-            ? SettingsManager.shared.textColor.withAlphaComponent(SettingsManager.shared.opacity)
-            : SettingsManager.shared.textColor.withAlphaComponent(SettingsManager.shared.opacity * 0.5)
-    }
-
-    func removeStopwatch() {
-        stopwatchTimer?.invalidate()
-        stopwatchTimer = nil
-
-        // Add elapsed time to today's total (only for stopwatch mode)
-        if !pomodoroActive {
-            SettingsManager.shared.totalTodaySeconds += stopwatchSeconds
-        }
-
-        // Reset pomodoro state
-        pomodoroActive = false
-        pomodoroCompletedSessions = 0
-
-        stopwatchVisible = false
-        stopwatchRunning = false
-        stopwatchSeconds = 0
-        clockView.timerVisible = false
-
-        separatorLabel.isHidden = true
-        timerLabel.isHidden = true
-        totalTodayLabel.isHidden = true
-
-        updateWindowSize()
-        updateWindowPosition()
-    }
-
-    func updateTimerDisplay() {
-        if pomodoroActive {
-            // Show pomodoro countdown
-            let minutes = pomodoroSecondsRemaining / 60
-            let seconds = pomodoroSecondsRemaining % 60
-            timerLabel.stringValue = String(format: "%02d:%02d", minutes, seconds)
-        } else {
-            let hours = stopwatchSeconds / 3600
-            let minutes = (stopwatchSeconds % 3600) / 60
-            let seconds = stopwatchSeconds % 60
-            if hours > 0 {
-                timerLabel.stringValue = String(format: "%d:%02d:%02d", hours, minutes, seconds)
-            } else {
-                timerLabel.stringValue = String(format: "%02d:%02d", minutes, seconds)
-            }
-        }
-    }
-
-    func updateTotalTodayDisplay() {
-        if pomodoroActive {
-            // Show pomodoro status: emoji and session count
-            let prefix = pomodoroIsBreak ? "☕" : "🍅"
-            totalTodayLabel.stringValue = "\(prefix) #\(pomodoroCompletedSessions + 1)"
-        } else {
-            let total = SettingsManager.shared.totalTodaySeconds
-            let hours = total / 3600
-            let minutes = (total % 3600) / 60
-            let seconds = total % 60
-            if hours > 0 {
-                totalTodayLabel.stringValue = String(format: "%d:%02d:%02d", hours, minutes, seconds)
-            } else {
-                totalTodayLabel.stringValue = String(format: "%02d:%02d", minutes, seconds)
-            }
-        }
-    }
-
-    // MARK: - Pomodoro Methods
-
-    func startPomodoro() {
-        pomodoroActive = true
-        pomodoroIsBreak = false
-        pomodoroSecondsRemaining = SettingsManager.shared.pomodoroWorkDuration * 60
-        updateTotalTodayDisplay()
-    }
-
-    func togglePomodoro() {
-        if pomodoroActive {
-            // Stop pomodoro
-            pomodoroActive = false
-            pomodoroCompletedSessions = 0
-            updateTotalTodayDisplay()
-        } else {
-            // Start pomodoro
-            startPomodoro()
-        }
-    }
-
-    func pomodoroTick() {
-        guard pomodoroActive else { return }
-
-        pomodoroSecondsRemaining -= 1
-
-        if pomodoroSecondsRemaining <= 0 {
-            pomodoroSessionComplete()
-        }
-    }
-
-    func pomodoroSessionComplete() {
-        // Play sound
-        if let sound = NSSound(named: "Glass") {
-            sound.volume = Float(SettingsManager.shared.chimeVolume) / 100.0
-            sound.play()
-        }
-
-        if pomodoroIsBreak {
-            // Break is over, start work
-            pomodoroIsBreak = false
-            pomodoroSecondsRemaining = SettingsManager.shared.pomodoroWorkDuration * 60
-        } else {
-            // Work is over, start break
-            pomodoroCompletedSessions += 1
-
-            // Check if it's time for a long break
-            let sessionsBeforeLong = SettingsManager.shared.pomodoroSessionsBeforeLongBreak
-            if pomodoroCompletedSessions >= sessionsBeforeLong {
-                pomodoroSecondsRemaining = SettingsManager.shared.pomodoroLongBreakDuration * 60
-                pomodoroCompletedSessions = 0
-            } else {
-                pomodoroSecondsRemaining = SettingsManager.shared.pomodoroBreakDuration * 60
-            }
-            pomodoroIsBreak = true
-        }
     }
 
     func updateLabelContent() {
@@ -1696,7 +1159,7 @@ class Clock: NSObject, NSApplicationDelegate {
         let settings = SettingsManager.shared
         let size = calculateWindowSize()
 
-        // Resize and re-pin in one step so the window doesn't jump when the timer appears
+        // Resize and re-pin in one step so the window doesn't jump when its size changes
         var frame = window.frame
         frame.size = size
         if let screen = SettingsManager.mainDisplayScreen() {
@@ -1728,62 +1191,11 @@ class Clock: NSObject, NSApplicationDelegate {
             clockWidth = max(clockWidth, dateWidth)
         }
 
-        // Timer measurements
-        let timerGap = settings.timerGap
-        let timerText = "00:00:00" // Use longer format to ensure space for hours
-        let separatorText = ""
-        let timerWidth = timerText.size(withAttributes: timeAttributes).width + 10
-        let separatorWidth = separatorText.size(withAttributes: timeAttributes).width
-
-        // Determine positions based on timer side setting
-        let timerOnLeft = settings.timerSide == 0
-        let halfGap = timerGap / 2
-
-        var clockX: CGFloat = 0
-        var separatorX: CGFloat = 0
-        var timerX: CGFloat = 0
-
-        if stopwatchVisible {
-            if timerOnLeft {
-                // Timer on left: [timer] [halfGap] [|] [halfGap] [clock]
-                timerX = 0
-                separatorX = round(timerWidth + halfGap)
-                clockX = round(separatorX + separatorWidth + halfGap)
-            } else {
-                // Timer on right: [clock] [halfGap] [|] [halfGap] [timer]
-                clockX = 0
-                separatorX = round(clockWidth + halfGap)
-                timerX = round(separatorX + separatorWidth + halfGap)
-            }
-        } else {
-            clockX = 0
-        }
-
-        // Update clock frame tracking for click detection
         if settings.showDate {
-            let clockFrameHeight = timeHeight + dateHeight + settings.lineSpacing
-            clockView.clockFrame = NSRect(x: clockX, y: 0, width: clockWidth, height: clockFrameHeight)
-            timeLabel.frame = NSRect(x: clockX, y: dateHeight + settings.lineSpacing, width: clockWidth, height: timeHeight)
-            dateLabel.frame = NSRect(x: clockX, y: 0, width: clockWidth, height: dateHeight)
+            timeLabel.frame = NSRect(x: 0, y: dateHeight + settings.lineSpacing, width: clockWidth, height: timeHeight)
+            dateLabel.frame = NSRect(x: 0, y: 0, width: clockWidth, height: dateHeight)
         } else {
-            clockView.clockFrame = NSRect(x: clockX, y: 0, width: clockWidth, height: size.height)
-            timeLabel.frame = NSRect(x: clockX, y: 0, width: clockWidth, height: size.height)
-        }
-
-        // Layout timer labels
-        if stopwatchVisible {
-            let timerY = settings.showDate ? dateHeight + settings.lineSpacing : 0
-            let timerHeight = settings.showDate ? timeHeight : size.height
-
-            separatorLabel.frame = NSRect(x: separatorX, y: timerY, width: separatorWidth, height: timerHeight)
-            timerLabel.frame = NSRect(x: timerX, y: timerY, width: timerWidth, height: timerHeight)
-            clockView.timerFrame = NSRect(x: timerX, y: timerY, width: timerWidth, height: timerHeight)
-
-            // Position total today label below timer (only when date is shown)
-            if settings.showDate {
-                totalTodayLabel.frame = NSRect(x: timerX, y: 0, width: timerWidth, height: dateHeight)
-                clockView.totalFrame = NSRect(x: timerX, y: 0, width: timerWidth, height: dateHeight)
-            }
+            timeLabel.frame = NSRect(x: 0, y: 0, width: clockWidth, height: size.height)
         }
     }
 
@@ -1813,16 +1225,6 @@ class Clock: NSObject, NSApplicationDelegate {
 
             width = max(timeSize.width, dateSize.width) + 22
             height = timeSize.height + dateSize.height + settings.lineSpacing + 2
-        }
-
-        // Add space for timer if visible
-        if stopwatchVisible {
-            let timerText = "00:00:00" // Use longer format to ensure space for hours
-            let separatorText = ""
-            let timerSize = timerText.size(withAttributes: timeAttributes)
-            let separatorSize = separatorText.size(withAttributes: timeAttributes)
-            let timerGap = settings.timerGap
-            width += timerSize.width + separatorSize.width + timerGap + 20 // extra padding for timer
         }
 
         return NSSize(width: width, height: height)
@@ -1904,44 +1306,6 @@ class Clock: NSObject, NSApplicationDelegate {
         dateLabel.shadow = shadow
         dateLabel.isHidden = !settings.showDate
 
-        // Separator label
-        separatorLabel = NSTextField()
-        separatorLabel.font = settings.getFont()
-        separatorLabel.isBezeled = false
-        separatorLabel.isEditable = false
-        separatorLabel.isSelectable = false
-        separatorLabel.drawsBackground = false
-        separatorLabel.alignment = .center
-        separatorLabel.textColor = color
-        separatorLabel.shadow = shadow
-        separatorLabel.stringValue = ""
-        separatorLabel.isHidden = true
-
-        // Timer label
-        timerLabel = NSTextField()
-        timerLabel.font = settings.getFont()
-        timerLabel.isBezeled = false
-        timerLabel.isEditable = false
-        timerLabel.isSelectable = false
-        timerLabel.drawsBackground = false
-        timerLabel.alignment = .center
-        timerLabel.textColor = color
-        timerLabel.shadow = shadow
-        timerLabel.stringValue = "00:00"
-        timerLabel.isHidden = true
-
-        // Total today label
-        totalTodayLabel = NSTextField()
-        totalTodayLabel.font = settings.getDateFont()
-        totalTodayLabel.isBezeled = false
-        totalTodayLabel.isEditable = false
-        totalTodayLabel.isSelectable = false
-        totalTodayLabel.drawsBackground = false
-        totalTodayLabel.alignment = .center
-        totalTodayLabel.textColor = color
-        totalTodayLabel.shadow = shadow
-        totalTodayLabel.stringValue = "00:00"
-        totalTodayLabel.isHidden = true
 
         // Fire on whole-second boundaries so the displayed time flips when the real time does
         let nextSecond = Date(timeIntervalSinceReferenceDate: ceil(Date().timeIntervalSinceReferenceDate))
@@ -1983,39 +1347,14 @@ class Clock: NSObject, NSApplicationDelegate {
 
         clockView = ClockView(frame: NSMakeRect(0, 0, size.width, size.height))
         clockView.onClockClicked = { [weak self] in
-            guard let self = self else { return }
-            if self.stopwatchVisible {
-                self.removeStopwatch()
-            } else if SettingsManager.shared.clickToShowTimerEnabled {
-                if SettingsManager.shared.isPomodoroMode {
-                    self.startPomodoro()
-                    self.startStopwatch() // Still start the timer display
-                } else {
-                    self.startStopwatch()
-                }
-            }
-        }
-        clockView.onTimerClicked = { [weak self] in
-            guard let self = self else { return }
-            if SettingsManager.shared.isPomodoroMode {
-                // In pomodoro mode, clicking timer doesn't pause
-                return
-            }
-            self.toggleStopwatch()
+            self?.toggleCalendar()
         }
         clockView.onRightClick = { [weak self] in
             self?.openSettings()
         }
-        clockView.onTotalClicked = {
-            // Total click does nothing now - pomodoro is started by clock click
-        }
 
-        // Add all labels
         clockView.addSubview(timeLabel)
         clockView.addSubview(dateLabel)
-        clockView.addSubview(separatorLabel)
-        clockView.addSubview(timerLabel)
-        clockView.addSubview(totalTodayLabel)
 
         // Layout labels
         let font = settings.getFont()
@@ -2029,9 +1368,6 @@ class Clock: NSObject, NSApplicationDelegate {
         } else {
             timeLabel.frame = clockView.bounds
         }
-
-        // Set initial clock frame for click detection
-        clockView.clockFrame = clockView.bounds
 
         window.contentView = clockView
         window.ignoresMouseEvents = false
