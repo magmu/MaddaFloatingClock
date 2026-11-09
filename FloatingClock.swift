@@ -28,6 +28,7 @@ class SettingsManager {
     private let defaults = UserDefaults.standard
 
     private init() {
+        migrateFromOldBundleID()
         defaults.register(defaults: [
             SettingsKeys.colorRed: 1.0,
             SettingsKeys.colorGreen: 1.0,
@@ -45,6 +46,31 @@ class SettingsManager {
             SettingsKeys.chimeInterval: 30,
             SettingsKeys.chimeVolume: 50,
         ])
+    }
+
+    // The app used to be "Madda Floating Clock" (com.madda.floatingclock). Copy its
+    // saved settings over once so renaming the app doesn't reset everything.
+    private func migrateFromOldBundleID() {
+        let migratedKey = "migratedFromMaddaFloatingClock"
+        guard !defaults.bool(forKey: migratedKey) else { return }
+
+        if let old = defaults.persistentDomain(forName: "com.madda.floatingclock") {
+            let keys = [
+                SettingsKeys.colorRed, SettingsKeys.colorGreen, SettingsKeys.colorBlue,
+                SettingsKeys.opacity, SettingsKeys.fontName, SettingsKeys.fontWeight,
+                SettingsKeys.fontSize, SettingsKeys.showDate, SettingsKeys.timeFormat,
+                SettingsKeys.dateFormat, SettingsKeys.dateFontSize, SettingsKeys.lineSpacing,
+                SettingsKeys.textAlignment, SettingsKeys.chimeInterval, SettingsKeys.chimeVolume,
+                SettingsKeys.settingsWindowX, SettingsKeys.settingsWindowY,
+                SettingsKeys.hasSettingsWindowPosition,
+            ]
+            for key in keys where defaults.object(forKey: key) == nil {
+                if let value = old[key] {
+                    defaults.set(value, forKey: key)
+                }
+            }
+        }
+        defaults.set(true, forKey: migratedKey)
     }
 
     // The screen with the menu bar (the one set as main display in System Settings).
@@ -395,7 +421,7 @@ class SettingsWindowController: NSWindowController, NSWindowDelegate {
         // INFORMATION SECTION
         // ═══════════════════════════════════════
 
-        mainStack.addArrangedSubview(makeSectionHeader("Madda Floating Clock"))
+        mainStack.addArrangedSubview(makeSectionHeader("Floating Clock"))
 
         let infoText = """
         This is a minimal, always-on-top desktop clock for macOS.
@@ -1021,7 +1047,7 @@ class Clock: NSObject, NSApplicationDelegate {
 
     func setupMenu() {
         let menu = NSMenu()
-        let settingsItem = NSMenuItem(title: "Madda Clock Settings...", action: #selector(openSettings), keyEquivalent: "")
+        let settingsItem = NSMenuItem(title: "Floating Clock Settings...", action: #selector(openSettings), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
 

@@ -5,13 +5,13 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>MaddaFloatingClock</string>
+    <string>FloatingClock</string>
     <key>CFBundleIdentifier</key>
-    <string>com.madda.floatingclock</string>
+    <string>com.magmu.floatingclock</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Madda Floating Clock</string>
+    <string>Floating Clock</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -1,8 +1,8 @@
-# Madda Floating Clock
+# Floating Clock
 
-A customizable floating clock for macOS that stays on top of all windows.
+A customizable floating clock for macOS that stays on top of all windows. Click it to open a calendar.
 
-Based on [FloatClock by kolbusa](https://github.com/kolbusa/FloatClock) which is much more minimal but gave me a good starting point. Much thanks for that.
+Forked from [Madda Floating Clock by maddada](https://github.com/maddada/MaddaFloatingClock), which was itself based on [FloatClock by kolbusa](https://github.com/kolbusa/FloatClock). Thanks to both.
 
 <br />
 
@@ -27,13 +27,18 @@ Click the clock to open a calendar flyout (today's full date plus a month view y
 
 <br />
 
-## Super configurable:
-<img width="500" alt="2025-12-25_Vivaldi Snapshot_03-01-40" src="https://github.com/user-attachments/assets/747c47aa-b554-4b67-a125-9566326d6036" />
+## Upgrading from Madda Floating Clock
+
+The app was renamed, so it installs alongside the old one instead of replacing it. Your settings carry over automatically on first launch. To clean up:
+
+1. Quit the old clock (right-click it → Quit).
+2. Delete `/Applications/Madda Floating Clock.app`.
+3. Remove it from System Settings → General → Login Items, and add `Floating Clock` instead (or run `make register`).
+4. If you used `make register` before, also run `launchctl unload ~/Library/LaunchAgents/MaddaFloatingClock.plist` and delete that file.
 
 <br />
-<br />
 
-## Recommandation:
+## Recommendation:
 
 Hide the menu bar clock by switching this setting to analog.
 

@@ -1,5 +1,5 @@
-NAME = MaddaFloatingClock
-APP_NAME = Madda Floating Clock.app
+NAME = FloatingClock
+APP_NAME = Floating Clock.app
 BUNDLE_CONTENTS = $(APP_NAME)/Contents
 BUNDLE_MACOS = $(BUNDLE_CONTENTS)/MacOS
 BUNDLE_RESOURCES = $(BUNDLE_CONTENTS)/Resources

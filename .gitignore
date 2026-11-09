@@ -63,5 +63,5 @@ fastlane/test_output
 
 .DS_Store
 # Build output
-/Madda Floating Clock.app/
-/MaddaFloatingClock.plist
+/Floating Clock.app/
+/FloatingClock.plist

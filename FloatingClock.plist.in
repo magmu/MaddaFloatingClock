@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
    <key>Label</key>
-   <string>com.madda.floatingclock</string>
+   <string>com.magmu.floatingclock</string>
    <key>ProgramArguments</key>
    <array><string>@BIN_DIR@/@NAME@</string></array>
    <key>RunAtLoad</key>
